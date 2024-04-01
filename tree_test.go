@@ -7,38 +7,39 @@ import (
 	"github.com/bboreham/go-loser"
 )
 
-type List struct {
-	list []uint64
-	cur  uint64
+type List[E loser.Lesser[E]] struct {
+	list []E
+	cur  E
 }
 
-func NewList(list ...uint64) *List {
-	return &List{list: list}
+func NewList[E loser.Lesser[E]](list ...E) *List[E] {
+	return &List[E]{list: list}
 }
 
-func (it *List) At() uint64 {
+func (it *List[E]) At() E {
 	return it.cur
 }
 
-func (it *List) Next() bool {
+func (it *List[E]) Next() bool {
 	if len(it.list) > 0 {
 		it.cur = it.list[0]
 		it.list = it.list[1:]
 		return true
 	}
-	it.cur = 0
+	var zero E
+	it.cur = zero
 	return false
 }
 
-func (it *List) Seek(val uint64) bool {
-	for it.cur < val && len(it.list) > 0 {
+func (it *List[E]) Seek(val E) bool {
+	for it.cur.Less(val) && len(it.list) > 0 {
 		it.cur = it.list[0]
 		it.list = it.list[1:]
 	}
 	return len(it.list) > 0
 }
 
-func checkIterablesEqual[E loser.Value, S1 loser.Sequence[E], S2 loser.Sequence[E]](t *testing.T, a S1, b S2, less func(E, E) bool) {
+func checkIterablesEqual[E loser.Lesser[E], S1, S2 loser.Sequence[E]](t *testing.T, a S1, b S2) {
 	t.Helper()
 	count := 0
 	for a.Next() {
@@ -46,7 +47,7 @@ func checkIterablesEqual[E loser.Value, S1 loser.Sequence[E], S2 loser.Sequence[
 		if !b.Next() {
 			t.Fatalf("b ended before a after %d elements", count)
 		}
-		if less(a.At(), b.At()) || less(b.At(), a.At()) {
+		if a.At().Less(b.At()) || b.At().Less(a.At()) {
 			t.Fatalf("position %d: %v != %v", count, a.At(), b.At())
 		}
 	}
@@ -58,54 +59,59 @@ func checkIterablesEqual[E loser.Value, S1 loser.Sequence[E], S2 loser.Sequence[
 func TestMerge(t *testing.T) {
 	tests := []struct {
 		name string
-		args []*List
-		want *List
+		args []*List[Uint64]
+		want *List[Uint64]
 	}{
 		{
 			name: "empty input",
-			want: NewList(),
+			want: NewList[Uint64](),
 		},
 		{
 			name: "one list",
-			args: []*List{NewList(1, 2, 3, 4)},
-			want: NewList(1, 2, 3, 4),
+			args: []*List[Uint64]{NewList[Uint64](1, 2, 3, 4)},
+			want: NewList[Uint64](1, 2, 3, 4),
 		},
 		{
 			name: "two lists",
-			args: []*List{NewList(3, 4, 5), NewList(1, 2)},
-			want: NewList(1, 2, 3, 4, 5),
+			args: []*List[Uint64]{NewList[Uint64](3, 4, 5), NewList[Uint64](1, 2)},
+			want: NewList[Uint64](1, 2, 3, 4, 5),
 		},
 		{
 			name: "two lists, first empty",
-			args: []*List{NewList(), NewList(1, 2)},
-			want: NewList(1, 2),
+			args: []*List[Uint64]{NewList[Uint64](), NewList[Uint64](1, 2)},
+			want: NewList[Uint64](1, 2),
 		},
 		{
 			name: "two lists, second empty",
-			args: []*List{NewList(1, 2), NewList()},
-			want: NewList(1, 2),
+			args: []*List[Uint64]{NewList[Uint64](1, 2), NewList[Uint64]()},
+			want: NewList[Uint64](1, 2),
 		},
 		{
 			name: "two lists b",
-			args: []*List{NewList(1, 2), NewList(3, 4, 5)},
-			want: NewList(1, 2, 3, 4, 5),
+			args: []*List[Uint64]{NewList[Uint64](1, 2), NewList[Uint64](3, 4, 5)},
+			want: NewList[Uint64](1, 2, 3, 4, 5),
 		},
 		{
 			name: "two lists c",
-			args: []*List{NewList(1, 3), NewList(2, 4, 5)},
-			want: NewList(1, 2, 3, 4, 5),
+			args: []*List[Uint64]{NewList[Uint64](1, 3), NewList[Uint64](2, 4, 5)},
+			want: NewList[Uint64](1, 2, 3, 4, 5),
 		},
 		{
 			name: "three lists",
-			args: []*List{NewList(1, 3), NewList(2, 4), NewList(5)},
-			want: NewList(1, 2, 3, 4, 5),
+			args: []*List[Uint64]{NewList[Uint64](1, 3), NewList[Uint64](2, 4), NewList[Uint64](5)},
+			want: NewList[Uint64](1, 2, 3, 4, 5),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			less := func(a, b uint64) bool { return a < b }
-			lt := loser.New[uint64](tt.args, math.MaxUint64)
-			checkIterablesEqual(t, tt.want, lt, less)
+			lt := loser.New[Uint64](tt.args, math.MaxUint64)
+			checkIterablesEqual(t, tt.want, lt)
 		})
 	}
+}
+
+type Uint64 uint64
+
+func (u Uint64) Less(other Uint64) bool {
+	return u < other
 }

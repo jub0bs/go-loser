@@ -2,16 +2,16 @@
 
 package loser
 
-import "golang.org/x/exp/constraints"
+type Lesser[T any] interface {
+	Less(T) bool
+}
 
-type Value constraints.Ordered
-
-type Sequence[E Value] interface {
+type Sequence[E Lesser[E]] interface {
 	At() E      // Returns the current value.
 	Next() bool // Advances and returns true if there is a value at this new position.
 }
 
-func New[E Value, S Sequence[E]](sequences []S, maxVal E) *Tree[E, S] {
+func New[E Lesser[E], S Sequence[E]](sequences []S, maxVal E) *Tree[E, S] {
 	nSequences := len(sequences)
 	t := Tree[E, S]{
 		maxVal: maxVal,
@@ -39,12 +39,12 @@ func (t *Tree[E, S]) Close() {
 // A loser tree is a binary tree laid out such that nodes N and N+1 have parent N/2.
 // We store M leaf nodes in positions M...2M-1, and M-1 internal nodes in positions 1..M-1.
 // Node 0 is a special node, containing the winner of the contest.
-type Tree[E Value, S Sequence[E]] struct {
+type Tree[E Lesser[E], S Sequence[E]] struct {
 	maxVal E
 	nodes  []node[E, S]
 }
 
-type node[E Value, S Sequence[E]] struct {
+type node[E Lesser[E], S Sequence[E]] struct {
 	index int // This is the loser for all nodes except the 0th, where it is the winner.
 	value E   // Value copied from the loser node, or winner for node 0.
 	items S   // Only populated for leaf nodes.
@@ -123,7 +123,7 @@ func (t *Tree[E, S]) playGame(pos int) int {
 	left := t.playGame(pos * 2)
 	right := t.playGame(pos*2 + 1)
 	var loser, winner int
-	if nodes[left].value < nodes[right].value {
+	if nodes[left].value.Less(nodes[right].value) {
 		loser, winner = right, left
 	} else {
 		loser, winner = left, right
@@ -139,7 +139,7 @@ func (t *Tree[E, S]) replayGames(pos int) {
 	winningValue := nodes[pos].value
 	for n := parent(pos); n != 0; n = parent(n) {
 		node := &nodes[n]
-		if node.value < winningValue {
+		if node.value.Less(winningValue) {
 			// Record pos as the loser here, and the old loser is the new winner.
 			node.index, pos = pos, node.index
 			node.value, winningValue = winningValue, node.value
